@@ -2,6 +2,19 @@ import streamlit as st
 import sqlite3
 import hashlib
 import pandas as pd
+import os
+
+# ==========================================
+# 0. UI HELPERS (LOGO CONFIGURATION)
+# ==========================================
+def display_logo(width=150):
+    """Checks if a logo file exists and displays it. Otherwise shows a placeholder."""
+    # You can change "logo.png" to the name of your actual image file (e.g., "logo.jpg")
+    if os.path.exists("logo.png"):
+        st.image("logo.png", width=width)
+    else:
+        # Fallback if the file isn't found yet
+        st.info("🖼️ Add 'logo.png' to your folder to see it here.")
 
 # ==========================================
 # 1. DATABASE CONFIGURATION & SCHEMA
@@ -70,6 +83,8 @@ def update_status(task_id, new_status):
 # 3. INTERFACE LAYERS
 # ==========================================
 def team_view(user_id, full_name):
+    # Add logo to the top of the team view
+    display_logo(width=200)
     st.title("🏢 Sabhiv Enterprise Pvt Ltd")
     st.subheader(f"Welcome, {full_name} (Team Portal)")
     st.divider()
@@ -143,6 +158,8 @@ def team_view(user_id, full_name):
     conn.close()
 
 def manager_view():
+    # Add logo to the top of the manager view
+    display_logo(width=200)
     st.title("🏢 Sabhiv Enterprise Pvt Ltd")
     st.subheader("Executive Dashboard")
     conn = get_db_connection()
@@ -177,13 +194,16 @@ def manager_view():
 # 4. ROUTING & AUTHENTICATION
 # ==========================================
 def main():
-    st.set_page_config(page_title="Sabhiv Enterprise Tracker", layout="wide")
+    # Set page config (adds a tiny logo to the browser tab if you have a favicon)
+    st.set_page_config(page_title="Sabhiv Enterprise Tracker", page_icon="🏢", layout="wide")
     init_db()
 
     if "auth" not in st.session_state:
         st.session_state.auth = False
 
     if not st.session_state.auth:
+        # Show logo on the login page
+        display_logo(width=200)
         st.title("Sabhiv Enterprise Pvt Ltd")
         st.markdown("Welcome to the Operations Portal.")
         
@@ -230,6 +250,9 @@ def main():
     else:
         # Sidebar for Logout & Context
         with st.sidebar:
+            # Show a smaller version of the logo in the sidebar
+            display_logo(width=100)
+            st.divider()
             st.write(f"Logged in as: **{st.session_state.full_name}**")
             st.button("Logout", icon=":material/logout:", on_click=lambda: st.session_state.clear(), use_container_width=True)
             
