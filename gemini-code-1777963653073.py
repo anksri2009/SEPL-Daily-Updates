@@ -2,14 +2,26 @@ import streamlit as st
 import sqlite3
 import hashlib
 import pandas as pd
+import base64
+import os
 
 # ==========================================
 # 0. GLOBAL ASSETS & CONFIGURATION
 # ==========================================
 st.set_page_config(page_title="Sabhiv Enterprise Portal", page_icon="🏢", layout="wide", initial_sidebar_state="expanded")
 
-# Change this to your local file path (e.g., "logo.png") or your own web URL
-LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2942/2942245.png"
+def get_base64_image(image_path):
+    """Reads a local image file and converts it to a base64 string for CSS/HTML embedding."""
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as img_file:
+            encoded_string = base64.b64encode(img_file.read()).decode()
+            # Assuming PNG for the logo; change to image/jpeg if using a JPG
+            return f"data:image/png;base64,{encoded_string}"
+    return "" # Fallback if no image is found
+
+# Define the local path to your uploaded logo
+LOCAL_LOGO_PATH = "logo.png" 
+LOGO_BASE64 = get_base64_image(LOCAL_LOGO_PATH)
 
 # Inject Custom CSS for Watermark, Centering, and Enterprise Look
 st.markdown(f"""
@@ -17,7 +29,7 @@ st.markdown(f"""
     /* Global Watermark Background */
     .stApp::before {{
         content: "";
-        background-image: url('{LOGO_URL}');
+        background-image: url('{LOGO_BASE64}');
         background-size: 400px; /* Size of the watermark */
         background-position: center;
         background-repeat: no-repeat;
@@ -110,7 +122,9 @@ def update_status(task_id, new_status):
 # 4. INTERFACE LAYERS
 # ==========================================
 def team_view(user_id, full_name):
-    st.markdown(f'<img src="{LOGO_URL}" style="display: block; margin: 0 auto; width: 60px;">', unsafe_allow_html=True)
+    if LOGO_BASE64:
+        st.markdown(f'<img src="{LOGO_BASE64}" style="display: block; margin: 0 auto; width: 60px;">', unsafe_allow_html=True)
+        
     st.markdown('<p class="main-header">Team Workspace</p>', unsafe_allow_html=True)
     st.markdown(f'<p class="sub-header">Welcome back, {full_name}. Here are your active assignments.</p>', unsafe_allow_html=True)
     
@@ -172,7 +186,9 @@ def team_view(user_id, full_name):
                     )
 
 def manager_view():
-    st.markdown(f'<img src="{LOGO_URL}" style="display: block; margin: 0 auto; width: 60px;">', unsafe_allow_html=True)
+    if LOGO_BASE64:
+        st.markdown(f'<img src="{LOGO_BASE64}" style="display: block; margin: 0 auto; width: 60px;">', unsafe_allow_html=True)
+        
     st.markdown('<p class="main-header">Executive Dashboard</p>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Real-time overview of enterprise operations.</p>', unsafe_allow_html=True)
     
@@ -216,9 +232,12 @@ def main():
     if not st.session_state.auth:
         _, center_col, _ = st.columns([1, 1.5, 1])
         with center_col:
+            # Build the login box HTML dynamically based on whether the logo exists
+            logo_html = f'<img src="{LOGO_BASE64}" width="80" style="margin-bottom: 10px;">' if LOGO_BASE64 else ''
+            
             st.markdown(f'''
                 <div class="login-box">
-                    <img src="{LOGO_URL}" width="80" style="margin-bottom: 10px;">
+                    {logo_html}
                     <h2 style="color: #1e3a8a; margin-top: 0;">Sabhiv Enterprise Pvt Ltd</h2>
                     <p style="color:gray; margin-bottom:20px;">Please authenticate to access the system.</p>
                 </div>
@@ -255,8 +274,9 @@ def main():
 
     else:
         with st.sidebar:
-            # Using the logo in the sidebar as well
-            st.markdown(f'<img src="{LOGO_URL}" width="60" style="margin-bottom: 10px;">', unsafe_allow_html=True)
+            if LOGO_BASE64:
+                st.markdown(f'<img src="{LOGO_BASE64}" width="60" style="margin-bottom: 10px;">', unsafe_allow_html=True)
+                
             st.markdown(f"**{st.session_state.full_name}**")
             st.caption(f"Role: {str(st.session_state.role).capitalize()}")
             st.divider()
