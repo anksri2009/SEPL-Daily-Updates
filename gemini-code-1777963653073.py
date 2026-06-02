@@ -20,55 +20,36 @@ def get_image_as_base64(file_path):
         # Safe fallback URL if logo.png is accidentally deleted or moved
         return "https://cdn-icons-png.flaticon.com/512/2942/2942245.png"
 
-# This will load your local logo.png file
 LOGO_SRC = get_image_as_base64("logo.png")
 
 # Inject Custom CSS for Watermark, Centering, and Enterprise Look
 st.markdown(f"""
     <style>
-    /* Global Watermark Background */
     .stApp::before {{
         content: "";
         background-image: url('{LOGO_SRC}');
-        background-size: 400px; /* Size of the watermark */
+        background-size: 400px; 
         background-position: center;
         background-repeat: no-repeat;
         background-attachment: fixed;
         position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        opacity: 0.04; /* 4% opacity makes it a subtle watermark */
+        top: 0; left: 0; right: 0; bottom: 0;
+        opacity: 0.04; 
         z-index: 0;
-        pointer-events: none; /* Ensures the watermark doesn't block mouse clicks */
+        pointer-events: none; 
     }}
-
-    /* Ensure content stays above the watermark */
     [data-testid="stAppViewContainer"] > .main {{ z-index: 1; }}
-    
-    /* Global Typography and Background */
     .main-header {{ font-size: 2.5rem; color: #1e3a8a; font-weight: 800; padding-bottom: 0px; text-align: center; }}
     .sub-header {{ font-size: 1.1rem; color: #64748b; padding-top: 0px; margin-bottom: 2rem; text-align: center; }}
-    
-    /* Center the login box and its contents */
     .login-box {{ 
-        margin: auto; 
-        padding: 2rem; 
-        border-radius: 10px; 
-        background-color: rgba(255, 255, 255, 0.95); /* Slight transparency */
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
-        text-align: center;
+        margin: auto; padding: 2rem; border-radius: 10px; 
+        background-color: rgba(255, 255, 255, 0.95); 
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); text-align: center;
     }}
-    
-    /* Styling Metrics */
     div[data-testid="stMetricValue"] {{ color: #1e3a8a; font-weight: 700; }}
-    
-    /* Better Expander Headers */
     .streamlit-expanderHeader {{ font-weight: 600 !important; color: #1e3a8a !important; }}
     </style>
 """, unsafe_allow_html=True)
-
 
 # ==========================================
 # 1. DATABASE CONNECTION & CACHING
@@ -91,16 +72,15 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY, task_id INTEGER, old_status TEXT, new_status TEXT, ts TIMESTAMP)''')
     c.execute('''CREATE TABLE IF NOT EXISTS statuses (id INTEGER PRIMARY KEY, label TEXT UNIQUE, icon TEXT)''')
 
-    # NEW TABLE: Plug-and-Play User Data Storage
+    # Plug-and-Play User Data Storage
     c.execute('''CREATE TABLE IF NOT EXISTS user_records (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                    user_identifier TEXT, 
-                    user_data TEXT, 
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, user_identifier TEXT, user_data TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
 
+    # Trigger to log updates automatically to the HDD
     c.execute('''CREATE TRIGGER IF NOT EXISTS log_update AFTER UPDATE OF status ON tasks
                  BEGIN INSERT INTO history (task_id, old_status, new_status, ts) VALUES (OLD.id, OLD.status, NEW.status, CURRENT_TIMESTAMP); END;''')
 
+    # Permanent Admin Account
     pwd = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute('INSERT OR IGNORE INTO users (username, pwd, role, full_name) VALUES (?, ?, ?, ?)', ("admin", pwd, "manager", "System Admin"))
     
@@ -118,21 +98,17 @@ def get_global_pipeline():
     return pd.read_sql_query('''SELECT p.name as "Project Name", t.name as "Task", u.full_name as "Assigned To", t.status as "Status", t.updated_at as "Last Update" FROM tasks t JOIN projects p ON t.project_id = p.id JOIN users u ON t.user_id = u.id ORDER BY t.updated_at DESC''', conn)
 
 def save_user_data(user_id, data_payload):
-    """Inserts a new user record into the HDD database."""
     conn = get_db_connection()
     conn.execute('INSERT INTO user_records (user_identifier, user_data) VALUES (?, ?)', (user_id, data_payload))
     conn.commit()
 
 def get_all_user_data():
-    """Retrieves all stored records for manager view."""
     conn = get_db_connection()
     return pd.read_sql_query('SELECT user_identifier as "User", user_data as "Stored Data", timestamp as "Timestamp" FROM user_records ORDER BY timestamp DESC', conn)
 
 def get_personal_user_data(user_id):
-    """Retrieves specific stored records for an individual user."""
     conn = get_db_connection()
     return pd.read_sql_query('SELECT user_data as "Stored Data", timestamp as "Timestamp" FROM user_records WHERE user_identifier=? ORDER BY timestamp DESC', conn, params=(user_id,))
-
 
 # ==========================================
 # 3. STATE MUTATIONS (CALLBACKS)
@@ -142,7 +118,14 @@ def update_status(task_id, new_status):
     conn.execute('UPDATE tasks SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (new_status, task_id))
     conn.commit()
     get_global_pipeline.clear() 
-    st.toast(f"Status successfully updated to {new_status}!", icon="✅")
+    st.toast(f"Status successfully updated to {new_status}! Saved to HDD.", icon="✅")
+
+def admin_delete_user(target_user_id, target_username):
+    """Permanently deletes a user from the HDD database."""
+    conn = get_db_connection()
+    conn.execute('DELETE FROM users WHERE id=?', (target_user_id,))
+    conn.commit()
+    st.toast(f"User '{target_username}' has been permanently deleted from the system.", icon="🗑️")
 
 # ==========================================
 # 4. INTERFACE LAYERS
@@ -152,8 +135,7 @@ def team_view(user_id, full_name):
     st.markdown('<p class="main-header">Team Workspace</p>', unsafe_allow_html=True)
     st.markdown(f'<p class="sub-header">Welcome back, {full_name}. Here are your active assignments.</p>', unsafe_allow_html=True)
     
-    # Use tabs to organize the upgraded app layout
-    tab_tasks, tab_storage = st.tabs(["📋 Task Manager", "💾 Personal Notes & Storage"])
+    tab_tasks, tab_history, tab_storage = st.tabs(["📋 Task Manager", "🕒 My Task History Log", "💾 Personal Notes & Storage"])
     
     with tab_tasks:
         conn = get_db_connection()
@@ -166,12 +148,15 @@ def team_view(user_id, full_name):
                     t_name = st.text_input("Task Description", placeholder="e.g., Draft social media posts")
                     if st.form_submit_button("Add Task", use_container_width=True):
                         if p_name and t_name:
-                            conn.execute('INSERT OR IGNORE INTO projects (name) VALUES (?)', (p_name,))
-                            p_id = conn.execute('SELECT id FROM projects WHERE name=?', (p_name,)).fetchone()['id']
-                            conn.execute('''INSERT INTO tasks (project_id, user_id, name, status, updated_at) VALUES (?, ?, ?, 'Created', CURRENT_TIMESTAMP)''', (p_id, user_id, t_name))
+                            cursor = conn.cursor()
+                            cursor.execute('INSERT OR IGNORE INTO projects (name) VALUES (?)', (p_name,))
+                            p_id = cursor.execute('SELECT id FROM projects WHERE name=?', (p_name,)).fetchone()['id']
+                            cursor.execute('''INSERT INTO tasks (project_id, user_id, name, status, updated_at) VALUES (?, ?, ?, 'Created', CURRENT_TIMESTAMP)''', (p_id, user_id, t_name))
+                            new_task_id = cursor.lastrowid
+                            cursor.execute('''INSERT INTO history (task_id, old_status, new_status, ts) VALUES (?, 'None', 'Created', CURRENT_TIMESTAMP)''', (new_task_id,))
                             conn.commit()
                             get_global_pipeline.clear()
-                            st.success("Task created!")
+                            st.success("Task created and permanently logged to HDD!")
                             st.rerun()
 
         with col2:
@@ -212,10 +197,23 @@ def team_view(user_id, full_name):
                             on_click=update_status, args=(task['id'], status['label']), use_container_width=True,
                             type="primary" if task['status'] == status['label'] else "secondary"
                         )
+    
+    with tab_history:
+        st.markdown("### 🕒 Your Permanent Task History")
+        st.write("This tab shows the exact timeline of every task you have created and every status update you have made, fetched directly from the HDD database.")
+        conn = get_db_connection()
+        user_history = pd.read_sql_query('''
+            SELECT p.name as "Project", t.name as "Task", h.old_status as "Previous State", h.new_status as "New State", h.ts as "Timestamp" 
+            FROM history h JOIN tasks t ON h.task_id = t.id JOIN projects p ON t.project_id = p.id
+            WHERE t.user_id = ? ORDER BY h.ts DESC
+        ''', conn, params=(user_id,))
+        if not user_history.empty:
+            st.dataframe(user_history, use_container_width=True, hide_index=True)
+        else:
+            st.info("No task history recorded yet.")
                         
     with tab_storage:
         st.markdown("### Secure Local Storage")
-        st.write("Information entered here is permanently saved to the master HDD database.")
         with st.form("user_data_form", clear_on_submit=True):
             user_notes = st.text_area("Enter data, links, or permanent notes:")
             if st.form_submit_button("Save to HDD"):
@@ -225,14 +223,11 @@ def team_view(user_id, full_name):
                     st.rerun()
                 else:
                     st.warning("Please enter some data before saving.")
-        
         st.divider()
         st.markdown("#### Your Saved Records")
         historical_data = get_personal_user_data(full_name)
-        
         if not historical_data.empty:
             st.dataframe(historical_data, use_container_width=True, hide_index=True)
-            st.caption(f"Local database path: `{os.path.abspath('sabhiv_enterprise.db')}`")
         else:
             st.info("No personal data stored yet.")
 
@@ -241,8 +236,7 @@ def manager_view():
     st.markdown('<p class="main-header">Executive Dashboard</p>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Real-time overview of enterprise operations.</p>', unsafe_allow_html=True)
     
-    # Use tabs for executive overview vs data review
-    tab_dash, tab_storage = st.tabs(["📊 Global Pipeline", "💾 Master HDD Records"])
+    tab_dash, tab_storage, tab_users = st.tabs(["📊 Global Pipeline", "💾 Master HDD Records", "👥 User Management"])
     
     with tab_dash:
         conn = get_db_connection()
@@ -269,20 +263,49 @@ def manager_view():
             st.dataframe(df_pipeline, use_container_width=True, hide_index=True, height=300)
 
         st.divider()
-        st.markdown("**Historical Audit Trail**")
-        history = pd.read_sql_query('''SELECT u.full_name as "User", t.name as "Task", h.old_status as "Old Status", h.new_status as "New Status", h.ts as "Timestamp" FROM history h JOIN tasks t ON h.task_id = t.id JOIN users u ON t.user_id = u.id ORDER BY h.ts DESC LIMIT 50''', conn)
+        st.markdown("**Enterprise Master Audit Trail (HDD Log)**")
+        history = pd.read_sql_query('''
+            SELECT u.full_name as "User", p.name as "Project", t.name as "Task", h.old_status as "Old Status", h.new_status as "New Status", h.ts as "Timestamp" 
+            FROM history h JOIN tasks t ON h.task_id = t.id JOIN projects p ON t.project_id = p.id JOIN users u ON t.user_id = u.id 
+            ORDER BY h.ts DESC LIMIT 200
+        ''', conn)
         st.dataframe(history, use_container_width=True, hide_index=True)
         
     with tab_storage:
         st.markdown("### Enterprise Data Logs")
-        st.write("This secure view displays all information stored to the local drive by any enterprise user.")
-        
         all_data = get_all_user_data()
         if not all_data.empty:
             st.dataframe(all_data, use_container_width=True, hide_index=True)
-            st.caption(f"Master database active at: `{os.path.abspath('sabhiv_enterprise.db')}`")
         else:
             st.info("The storage database is currently empty.")
+            
+    # NEW: Admin User Management Tab
+    with tab_users:
+        st.markdown("### Registered Team Members")
+        st.write("All users below are permanently saved in the local HDD database. You can revoke their access by deleting their account.")
+        
+        conn = get_db_connection()
+        # Fetch all users except the main admin to prevent accidental self-deletion
+        registered_users = pd.read_sql_query("SELECT id, username, full_name, role FROM users WHERE username != 'admin'", conn)
+        
+        if not registered_users.empty:
+            for index, row in registered_users.iterrows():
+                with st.container(border=True):
+                    u_col1, u_col2 = st.columns([4, 1])
+                    with u_col1:
+                        st.markdown(f"👤 **{row['full_name']}** (Username: `{row['username']}`)")
+                        st.caption(f"System Role: {str(row['role']).capitalize()}")
+                    with u_col2:
+                        st.button(
+                            "Delete User", 
+                            key=f"del_user_{row['id']}", 
+                            on_click=admin_delete_user, 
+                            args=(row['id'], row['username']), 
+                            type="primary",
+                            use_container_width=True
+                        )
+        else:
+            st.info("No team members have registered yet.")
 
 # ==========================================
 # 5. CORE ROUTING & AUTHENTICATION
@@ -330,8 +353,8 @@ def main():
                             try:
                                 conn.execute('INSERT INTO users (username, pwd, role, full_name) VALUES (?, ?, ?, ?)', (new_user, hp, 'team_member', new_name))
                                 conn.commit()
-                                st.success("Registration successful! Proceed to Secure Login.")
-                            except sqlite3.IntegrityError: st.error("Username taken. Please contact IT.")
+                                st.success("Registration successful! Your account is permanently saved. Proceed to Login.")
+                            except sqlite3.IntegrityError: st.error("Username taken. Please choose another.")
 
     else:
         with st.sidebar:
