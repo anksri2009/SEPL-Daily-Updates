@@ -3,14 +3,25 @@ import sqlite3
 import hashlib
 import pandas as pd
 import os
+import base64
 
 # ==========================================
 # 0. GLOBAL ASSETS & CONFIGURATION
 # ==========================================
 st.set_page_config(page_title="Sabhiv Enterprise Portal", page_icon="🏢", layout="wide", initial_sidebar_state="expanded")
 
-# Change this to your local file path (e.g., "logo.png") or your own web URL
-LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2942/2942245.png"
+def get_image_as_base64(file_path):
+    """Converts a local image to a base64 string for HTML/CSS rendering."""
+    try:
+        with open(file_path, "rb") as f:
+            data = f.read()
+        return f"data:image/png;base64,{base64.b64encode(data).decode()}"
+    except FileNotFoundError:
+        # Safe fallback URL if logo.png is accidentally deleted or moved
+        return "https://cdn-icons-png.flaticon.com/512/2942/2942245.png"
+
+# This will load your local logo.png file
+LOGO_SRC = get_image_as_base64("logo.png")
 
 # Inject Custom CSS for Watermark, Centering, and Enterprise Look
 st.markdown(f"""
@@ -18,7 +29,7 @@ st.markdown(f"""
     /* Global Watermark Background */
     .stApp::before {{
         content: "";
-        background-image: url('{LOGO_URL}');
+        background-image: url('{LOGO_SRC}');
         background-size: 400px; /* Size of the watermark */
         background-position: center;
         background-repeat: no-repeat;
@@ -137,7 +148,7 @@ def update_status(task_id, new_status):
 # 4. INTERFACE LAYERS
 # ==========================================
 def team_view(user_id, full_name):
-    st.markdown(f'<img src="{LOGO_URL}" style="display: block; margin: 0 auto; width: 60px;">', unsafe_allow_html=True)
+    st.markdown(f'<img src="{LOGO_SRC}" style="display: block; margin: 0 auto; width: 60px;">', unsafe_allow_html=True)
     st.markdown('<p class="main-header">Team Workspace</p>', unsafe_allow_html=True)
     st.markdown(f'<p class="sub-header">Welcome back, {full_name}. Here are your active assignments.</p>', unsafe_allow_html=True)
     
@@ -226,7 +237,7 @@ def team_view(user_id, full_name):
             st.info("No personal data stored yet.")
 
 def manager_view():
-    st.markdown(f'<img src="{LOGO_URL}" style="display: block; margin: 0 auto; width: 60px;">', unsafe_allow_html=True)
+    st.markdown(f'<img src="{LOGO_SRC}" style="display: block; margin: 0 auto; width: 60px;">', unsafe_allow_html=True)
     st.markdown('<p class="main-header">Executive Dashboard</p>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Real-time overview of enterprise operations.</p>', unsafe_allow_html=True)
     
@@ -287,7 +298,7 @@ def main():
         with center_col:
             st.markdown(f'''
                 <div class="login-box">
-                    <img src="{LOGO_URL}" width="80" style="margin-bottom: 10px;">
+                    <img src="{LOGO_SRC}" width="80" style="margin-bottom: 10px;">
                     <h2 style="color: #1e3a8a; margin-top: 0;">Sabhiv Enterprise Pvt Ltd</h2>
                     <p style="color:gray; margin-bottom:20px;">Please authenticate to access the system.</p>
                 </div>
@@ -324,8 +335,7 @@ def main():
 
     else:
         with st.sidebar:
-            # Using the logo in the sidebar as well
-            st.markdown(f'<img src="{LOGO_URL}" width="60" style="margin-bottom: 10px;">', unsafe_allow_html=True)
+            st.markdown(f'<img src="{LOGO_SRC}" width="60" style="margin-bottom: 10px;">', unsafe_allow_html=True)
             st.markdown(f"**{st.session_state.full_name}**")
             st.caption(f"Role: {str(st.session_state.role).capitalize()}")
             st.divider()
