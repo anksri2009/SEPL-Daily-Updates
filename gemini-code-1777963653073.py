@@ -64,8 +64,7 @@ def init_db():
 
         # Seed Data
         pwd = hashlib.sha256("admin123".encode()).hexdigest()
-        s.execute(text('INSERT INTO users (username, pwd, role, full_name) VALUES (:u, :p, :r, :f) ON CONFLICT (username) DO NOTHING'), {"u": "admin", "p": pwd, "r": "manager", "f": "System Admin"})
-        
+        s.execute(text('INSERT INTO users (username, pwd, role, full_name) VALUES (:u, :p, :r, :f) ON CONFLICT (username) DO UPDATE SET pwd = EXCLUDED.pwd'), {"u": "admin", "p": pwd, "r": "manager", "f": "System Admin"})
         default_statuses = [("Payment Received", "payments"), ("Invoice Sent", "receipt_long"), ("In Progress", "pending"), ("Completed", "check_circle")]
         for label, icon in default_statuses:
             s.execute(text('INSERT INTO statuses (label, icon) VALUES (:l, :i) ON CONFLICT (label) DO NOTHING'), {"l": label, "i": icon})
